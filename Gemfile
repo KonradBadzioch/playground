@@ -55,3 +55,7 @@ gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 
 gem 'rails_event_store', '~> 0.42.0'
 gem 'solargraph'
+gem 'dry-struct'
+gem 'dry-types'
+gem 'active_attr'
+gem 'pry'
