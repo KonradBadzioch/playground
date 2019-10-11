@@ -12,9 +12,11 @@ Rails.configuration.to_prepare do
 
   # Subscribe event handlers below
   Rails.configuration.event_store.tap do |store|
+    store.subscribe_to_all_events(EventsLogger.new(Rails.logger))
     # store.subscribe(Orders::OnOrderAdded, to: [Ordering::Events::OrderAdded])
     # store.subscribe(->(event) { SendOrderConfirmation.new.call(event) }, to: [OrderSubmitted])
     # store.subscribe_to_all_events(->(event) { Rails.logger.info(event.type) })
+    store.subscribe(QualityControl::ProcessManager, to: [QualityControl::Events::AuditEvaluated, QualityControl::Events::ClientConfirmedAudit, QualityControl::Events::CommissionConfirmedAudit])
   end
 
   # Register command handlers below
@@ -28,21 +30,5 @@ Rails.configuration.to_prepare do
 
     # bus.register(PrintInvoice, Invoicing::OnPrint.new)
     # bus.register(SubmitOrder,  ->(cmd) { Ordering::OnSubmitOrder.new.call(cmd) })
-  end
-
-  RailsEventStore::Client.new.tap do |client|
-    event_types = [
-      QualityControl::Events::AuditEvaluated,
-      QualityControl::Events::ClientConfirmedAudit,
-      QualityControl::Events::CommissionConfirmedAudit
-    ]
-
-    client.subscribe(
-      QualityControl::ProcessManager.new(
-        command_bus: Rails.configuration.command_bus,
-        event_store: client
-      ),
-      to: event_types
-    )
   end
 end

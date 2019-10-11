@@ -1,16 +1,18 @@
 module QualityControl
   class ProcessManager
     class State
+      attr_reader :evaluation, :commission_confirmed, :client_confirmed
+
       def apply_commission_confirmed_audit
-        commission_confirmed = true
+        self.commission_confirmed = true
       end
 
       def apply_client_confirmed_audit
-        client_confirmed = true
+        self.client_confirmed = true
       end
 
-      def apply_evaluation#(grade)
-        evaluation = 0 #grade
+      def apply_evaluation(event)
+        self.evaluation = event.data[:evaluation]
       end
 
       def complete?
@@ -20,36 +22,36 @@ module QualityControl
       def apply(*events)
         events.each do |event|
           case event
-          when QualityControl::Events::AuditEvaluated then apply_evaluation
-          when QualityControl::Events::CommissionConfirmedAudit then apply_commission_confirmed_audit
-          when QualityControl::Events::ClientConfirmedAudit then apply_client_confirmed_audit
+          when Events::AuditEvaluated then apply_evaluation(event)
+          when Events::CommissionConfirmedAudit then apply_commission_confirmed_audit
+          when Events::ClientConfirmedAudit then apply_client_confirmed_audit
           end
-          event_ids_to_link << event.id
+          @event_ids_to_link << event.event_id
         end
       end
 
       def load(stream_name:, event_store:)
-        events = event_store.read_stream_events_forward(stream_name)
+        events = event_store.read.stream(stream_name).forward.to_a
         events.each { |event| apply(event) }
-        version = events.size - 1
-        event_ids_to_link = []
+        @version = events.size - 1
+        @event_ids_to_link = []
         self
       end
 
       def store(stream_name:, event_store:)
-        event_store.link_to_stream(
+        event_store.link(
           event_ids_to_link,
           stream_name: stream_name,
           expected_version: version
         )
-        version = event_ids_to_link.size
-        event_ids_to_link = []
+        @version += event_ids_to_link.size
+        @event_ids_to_link = []
       end
 
       private
 
-      attr_accessor :version, :evaluation, :commission_confirmed, :client_confirmed
-      attr_reader :event_ids_to_link
+      attr_accessor :version, :event_ids_to_link
+      attr_writer :evaluation, :commission_confirmed, :client_confirmed
 
       def initialize
         @commission_confirmed = false
@@ -77,13 +79,12 @@ module QualityControl
       ) if state.complete?
     end
 
-    private
+    def event_store
+      Rails.configuration.event_store
+    end
 
-    attr_reader :command_bus, :event_store
-
-    def initialize(command_bus:, event_store:)
-      @command_bus = command_bus
-      @event_store = event_store
+    def command_bus
+      Rails.configuration.command_bus
     end
   end
 end
